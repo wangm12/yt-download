@@ -1,0 +1,186 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 380px;
+  max-height: 500px;
+  background: #1a1a1e;
+  color: #e4e4e7;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  max-height: 500px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #27272a;
+}
+
+.title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.count {
+  background: #7c3aed;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 10px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.count:empty {
+  display: none;
+}
+
+.list {
+  overflow-y: auto;
+  max-height: 360px;
+}
+
+.media-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #27272a;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.media-item:hover {
+  background: #27272a;
+}
+
+.media-item input[type='checkbox'] {
+  margin-top: 3px;
+  accent-color: #7c3aed;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.media-info {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.media-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e4e4e7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #71717a;
+}
+
+.media-domain {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-type {
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.type-hls {
+  background: rgba(124, 58, 237, 0.2);
+  color: #a78bfa;
+}
+
+.type-mp4 {
+  background: rgba(37, 99, 235, 0.2);
+  color: #60a5fa;
+}
+
+.type-webm {
+  background: rgba(5, 150, 105, 0.2);
+  color: #34d399;
+}
+
+.type-flv {
+  background: rgba(217, 119, 6, 0.2);
+  color: #fbbf24;
+}
+
+.media-size {
+  color: #71717a;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+  text-align: center;
+  color: #71717a;
+}
+
+.empty p:first-child {
+  font-size: 14px;
+  font-weight: 500;
+  color: #a1a1aa;
+}
+
+.empty .hint {
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.footer {
+  display: flex;
+  padding: 12px 16px;
+  border-top: 1px solid #27272a;
+}
+
+.download-btn {
+  width: 100%;
+  padding: 8px 16px;
+  background: #7c3aed;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.download-btn:hover {
+  background: #6d28d9;
+}
+
+.download-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

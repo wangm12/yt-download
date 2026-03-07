@@ -2,12 +2,13 @@ import { ipcMain } from 'electron'
 import * as downloadManager from '../downloadManager'
 import * as ytdlp from '../ytdlp'
 import * as settings from '../settings'
+import { sniffMedia } from '../mediaSniffer'
 
 export function registerDownloadHandlers(): void {
   ipcMain.handle('get-video-info', async (_event, url: string) => {
     try {
-      if (!ytdlp.isValidYouTubeUrl(url)) {
-        return { error: 'Invalid YouTube URL' }
+      if (!ytdlp.isValidDownloadUrl(url)) {
+        return { error: 'Invalid URL' }
       }
       const cookiesPath = settings.getCookiesPath()
       const ytdlpPath = settings.get('ytdlpPath')
@@ -31,6 +32,9 @@ export function registerDownloadHandlers(): void {
     playlistIndex?: number
     isPlaylist?: boolean
     playlistTitle?: string
+    mediaType?: string
+    referer?: string
+    customHeaders?: Record<string, string>
   }) => {
     try {
       const task = downloadManager.addTask(options)
@@ -87,5 +91,14 @@ export function registerDownloadHandlers(): void {
       downloadManager.clearCompleted()
     }
     return { ok: true }
+  })
+
+  ipcMain.handle('sniff-media', async (_event, url: string) => {
+    try {
+      const media = await sniffMedia(url)
+      return { data: media }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) }
+    }
   })
 }

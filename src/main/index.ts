@@ -4,7 +4,7 @@ import { optimizer, is } from '@electron-toolkit/utils'
 import * as database from './database'
 import * as downloadManager from './downloadManager'
 import { startPoTokenServer } from './poTokenServer'
-import { startLocalServer, stopLocalServer, setDownloadHandler } from './localServer'
+import { startLocalServer, stopLocalServer, setDownloadHandler, DownloadRequest } from './localServer'
 import { registerDownloadHandlers } from './ipc/downloads'
 import { registerSettingsHandlers } from './ipc/settings'
 import { registerWindowHandlers } from './ipc/window'
@@ -12,6 +12,7 @@ import { registerWindowHandlers } from './ipc/window'
 let mainWindow: BrowserWindow | null = null
 let settingsWindow: BrowserWindow | null = null
 let pendingYtdlUrl: string | null = null
+let pendingMediaRequests = new Map<string, DownloadRequest>()
 let isQuitting = false
 
 const VITE_DEV_SERVER_URL = process.env.ELECTRON_RENDERER_URL
@@ -83,6 +84,16 @@ function createWindow(): void {
   })
 }
 
+function handleDownloadRequest(request: DownloadRequest): void {
+  const params = new URLSearchParams({ url: request.url })
+  if (request.type) params.set('type', request.type)
+  if (request.referer) params.set('referer', request.referer)
+  if (request.title) params.set('title', request.title)
+  if (request.headers) params.set('headers', JSON.stringify(request.headers))
+  const ytdlUrl = `ytdl://download?${params.toString()}`
+  handleYtdlUrl(ytdlUrl)
+}
+
 function handleYtdlUrl(url: string): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.show()
@@ -144,7 +155,7 @@ app.whenReady().then(() => {
   downloadManager.loadFromDbAndRecover()
   startPoTokenServer()
   startLocalServer()
-  setDownloadHandler((url) => handleYtdlUrl(`ytdl://download?url=${encodeURIComponent(url)}`))
+  setDownloadHandler((request) => handleDownloadRequest(request))
   app.setAsDefaultProtocolClient('ytdl')
   setupIpcHandlers()
   optimizer.registerFramelessWindowIpc()

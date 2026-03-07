@@ -4,6 +4,8 @@ import { BottomBar } from '@/components/BottomBar'
 import { DownloadItem } from '@/components/DownloadItem'
 import { PlaylistGroup } from '@/components/PlaylistGroup'
 import { FormatDialog } from '@/components/FormatDialog'
+import { MediaPickerDialog } from '@/components/MediaPickerDialog'
+import type { DetectedMedia } from '@/components/MediaPickerDialog'
 import { ClearDialog } from '@/components/ClearDialog'
 import { SettingsPage } from '@/components/Settings'
 import { CoinLoader } from '@/components/CoinLoader'
@@ -42,14 +44,19 @@ function MainApp() {
   const { settings, loadSettings } = useSettings()
   const {
     loading,
+    loadingPhase,
     errorMsg,
     showFormatDialog,
     pendingVideoInfo,
     pendingEntries,
     pendingPlaylistMeta,
+    sniffedMedia,
+    sniffedPageUrl,
+    sniffedPageTitle,
     handlePaste,
     handleExternalUrl,
     clearPending,
+    clearSniffed,
     setShowFormatDialog
   } = useUrlHandler(settings)
 
@@ -100,6 +107,29 @@ function MainApp() {
       loadSettings()
     },
     [pendingVideoInfo, pendingEntries, pendingPlaylistMeta, loadSettings, clearPending]
+  )
+
+  const handleMediaDownload = useCallback(
+    async (items: DetectedMedia[]) => {
+      if (!window.api) return
+      const baseTitle = sniffedPageTitle || 'download'
+      for (let i = 0; i < items.length; i++) {
+        const title = items.length > 1
+          ? `${baseTitle} (${i + 1})`
+          : baseTitle
+
+        await window.api.startDownload({
+          url: items[i].url,
+          title,
+          format: 'video',
+          quality: settings.defaultVideoQuality,
+          referer: sniffedPageUrl || undefined,
+          mediaType: items[i].type
+        })
+      }
+      clearSniffed()
+    },
+    [settings.defaultVideoQuality, sniffedPageUrl, sniffedPageTitle, clearSniffed]
   )
 
   const handleClearCompleted = useCallback(async () => {
@@ -156,7 +186,7 @@ function MainApp() {
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
               <CoinLoader />
               <p className="text-accent-indigo text-sm animate-pulse mt-4">
-                Fetching video info...
+                {loadingPhase === 'sniffing' ? 'Scanning page for media...' : 'Fetching video info...'}
               </p>
             </div>
           )}
@@ -170,10 +200,10 @@ function MainApp() {
           {grouped.length === 0 && !loading ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-8">
               <p className="text-muted-foreground text-sm mb-2">
-                Paste a YouTube URL (Cmd+V) to add a download
+                Paste a URL (Cmd+V) to add a download
               </p>
               <p className="text-tertiary-foreground text-xs">
-                Supports videos, playlists, and channels
+                Supports YouTube, direct media links, and page scanning
               </p>
             </div>
           ) : (
@@ -210,6 +240,16 @@ function MainApp() {
             }}
             onDownload={handleDownload}
             settings={settings}
+          />
+        )}
+
+        {sniffedMedia && sniffedMedia.length > 0 && (
+          <MediaPickerDialog
+            media={sniffedMedia}
+            pageUrl={sniffedPageUrl}
+            pageTitle={sniffedPageTitle}
+            onClose={clearSniffed}
+            onDownload={handleMediaDownload}
           />
         )}
 

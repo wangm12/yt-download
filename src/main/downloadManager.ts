@@ -41,9 +41,12 @@ interface AddTaskOptions {
   playlistIndex?: number
   isPlaylist?: boolean
   playlistTitle?: string
+  mediaType?: string
+  referer?: string
+  customHeaders?: Record<string, string>
 }
 
-let activeDownloads = new Map<string, { cancel: () => void; getStderr?: () => string }>()
+let activeDownloads = new Map<string, { cancel: () => void; getStderr?: () => string; getDestinations?: () => string[] }>()
 let mainWindow: BrowserWindow | null = null
 
 export function setMainWindow(win: BrowserWindow | null): void {
@@ -97,7 +100,12 @@ export function addTask(options: AddTaskOptions): DownloadTask {
     filePath: null,
     thumbnail: options.thumbnail ?? null,
     duration: options.duration ?? null,
-    metadata: options.metadata ?? {},
+    metadata: {
+      ...(options.metadata ?? {}),
+      ...(options.mediaType ? { mediaType: options.mediaType } : {}),
+      ...(options.referer ? { referer: options.referer } : {}),
+      ...(options.customHeaders ? { customHeaders: options.customHeaders } : {})
+    },
     playlistId: options.playlistId ?? null,
     playlistIndex: options.playlistIndex ?? null,
     error: null,
@@ -142,6 +150,8 @@ async function runTask(task: DownloadTask): Promise<void> {
     ? join(outputDir, sanitizedPlaylistId)
     : outputDir
 
+  const taskMeta = task.metadata as Record<string, unknown> | undefined
+  const hasMediaType = !!(taskMeta?.mediaType)
   const dp = ytdlp.download(
     {
       url: task.url,
@@ -151,12 +161,15 @@ async function runTask(task: DownloadTask): Promise<void> {
       cookiesPath: cookiesPath || undefined,
       sleepInterval,
       isPlaylist: false,
-      playlistTitle: undefined
+      playlistTitle: undefined,
+      referer: (taskMeta?.referer as string) || undefined,
+      customHeaders: (taskMeta?.customHeaders as Record<string, string>) || undefined,
+      outputTitle: hasMediaType ? task.title : undefined
     },
     ytdlpPath
   )
 
-  activeDownloads.set(task.id, { cancel: dp.cancel, getStderr: dp.getStderr })
+  activeDownloads.set(task.id, { cancel: dp.cancel, getStderr: dp.getStderr, getDestinations: dp.getDestinations })
   dp.onProgress((progress) => {
     task.progress = progress.percent
     task.status = 'downloading'
@@ -358,6 +371,10 @@ export function deleteTask(id: string): void {
 
 export async function deleteTaskWithFiles(id: string): Promise<void> {
   const record = db.getDownloads().find((r) => r.id === id)
+
+  const active = activeDownloads.get(id)
+  const capturedDests = active?.getDestinations?.() ?? []
+
   cancelTask(id)
 
   if (record) {
@@ -379,16 +396,30 @@ export async function deleteTaskWithFiles(id: string): Promise<void> {
 
     if (record.file_path) filesToDelete.push(record.file_path)
 
+    const knownBases = new Set<string>()
+    knownBases.add(sanitizedTitle)
+
+    for (const dest of capturedDests) {
+      filesToDelete.push(dest)
+      filesToDelete.push(dest + '.part')
+      filesToDelete.push(dest + '.ytdl')
+      const base = dest.replace(/\.[^.]+$/, '').split('/').pop() ?? ''
+      if (base) knownBases.add(base)
+    }
+
     try {
       const files = await readdir(searchDir)
       for (const f of files) {
-        if (
-          f.startsWith(sanitizedTitle) &&
-          (f.endsWith('.part') || f.endsWith('.ytdl') ||
-           /\.f\d+\.\w+$/.test(f) || /\.f\d+\.\w+\.part$/.test(f) ||
-           f === `${sanitizedTitle}.${ext}`)
-        ) {
-          filesToDelete.push(join(searchDir, f))
+        for (const base of knownBases) {
+          if (
+            f.startsWith(base) &&
+            (f.endsWith('.part') || f.endsWith('.ytdl') ||
+             /\.f\d+\.\w+$/.test(f) || /\.f\d+\.\w+\.part$/.test(f) ||
+             f === `${base}.${ext}` || f === `${base}.mp4` || f === `${base}.webm`)
+          ) {
+            filesToDelete.push(join(searchDir, f))
+            break
+          }
         }
       }
     } catch { /* dir may not exist */ }

@@ -60,6 +60,9 @@ export interface DownloadOptions {
   sleepInterval?: number
   isPlaylist?: boolean
   playlistTitle?: string
+  referer?: string
+  customHeaders?: Record<string, string>
+  outputTitle?: string
   onProgress?: (progress: DownloadProgress) => void
 }
 
@@ -77,6 +80,7 @@ export interface DownloadProcess {
   onProgress: (cb: (progress: DownloadProgress) => void) => void
   cancel: () => void
   getStderr: () => string
+  getDestinations: () => string[]
 }
 
 const YOUTUBE_REGEX = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\/.+/
@@ -85,6 +89,16 @@ const CHANNEL_REGEX = /youtube\.com\/(@[\w-]+|channel\/[\w-]+|c\/[\w-]+|user\/[\
 
 export function isValidYouTubeUrl(url: string): boolean {
   return YOUTUBE_REGEX.test(url) && url.trim().length > 0
+}
+
+const MEDIA_URL_REGEX = /\.(m3u8|mp4|webm|flv|mkv)(\?|#|$)/i
+
+export function isMediaUrl(url: string): boolean {
+  return MEDIA_URL_REGEX.test(url)
+}
+
+export function isValidDownloadUrl(url: string): boolean {
+  return isValidYouTubeUrl(url) || isMediaUrl(url) || /^https?:\/\/.+/i.test(url)
 }
 
 export function isPlaylistUrl(url: string): boolean {
@@ -297,14 +311,23 @@ export function download(
     sleepInterval = 3,
     isPlaylist = false,
     playlistTitle,
+    referer,
+    customHeaders,
+    outputTitle,
     onProgress: progressCb
   } = options
 
   let onProgress: (progress: DownloadProgress) => void = progressCb ?? (() => {})
 
-  const outputTemplate = isPlaylist && playlistTitle
-    ? join(outputDir, `${playlistTitle}/%(title)s.%(ext)s`)
-    : join(outputDir, '%(title)s.%(ext)s')
+  let outputTemplate: string
+  if (isPlaylist && playlistTitle) {
+    outputTemplate = join(outputDir, `${playlistTitle}/%(title)s.%(ext)s`)
+  } else if (outputTitle) {
+    const sanitized = outputTitle.replace(/[/\\?*:|"<>]/g, '-')
+    outputTemplate = join(outputDir, `${sanitized}.%(ext)s`)
+  } else {
+    outputTemplate = join(outputDir, '%(title)s.%(ext)s')
+  }
 
   let formatStr: string
   if (format === 'audio' || format === 'mp3') {
@@ -335,6 +358,16 @@ export function download(
     args.push('--extract-audio', '--audio-format', 'mp3', '--audio-quality', '0')
   }
 
+  if (referer) {
+    args.push('--referer', referer)
+  }
+
+  if (customHeaders) {
+    for (const [key, value] of Object.entries(customHeaders)) {
+      args.push('--add-header', `${key}: ${value}`)
+    }
+  }
+
   args.push(url)
 
   const proc = spawn(path, args, {
@@ -344,8 +377,17 @@ export function download(
 
   let currentPhase = ''
   let stderrBuf = ''
+  const destinations: string[] = []
+
+  const DEST_RE = /^\[download\]\s+Destination:\s+(.+)$/
+  const MERGE_RE = /^\[Merger\]\s+Merging formats into "(.+)"$/
 
   const parseLine = (line: string) => {
+    const destMatch = DEST_RE.exec(line)
+    if (destMatch) destinations.push(destMatch[1].trim())
+    const mergeMatch = MERGE_RE.exec(line)
+    if (mergeMatch) destinations.push(mergeMatch[1].trim())
+
     const result = parseProgressLine(line, currentPhase)
     if (result.phase) {
       currentPhase = result.phase
@@ -381,7 +423,8 @@ export function download(
         proc.kill('SIGKILL')
       }
     },
-    getStderr: () => stderrBuf
+    getStderr: () => stderrBuf,
+    getDestinations: () => [...destinations]
   }
 
   return downloadProcess

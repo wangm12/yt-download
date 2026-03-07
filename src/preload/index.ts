@@ -15,6 +15,9 @@ const api = {
     playlistIndex?: number
     isPlaylist?: boolean
     playlistTitle?: string
+    mediaType?: string
+    referer?: string
+    customHeaders?: Record<string, string>
   }) => ipcRenderer.invoke('start-download', options),
   cancelDownload: (id: string) => ipcRenderer.invoke('cancel-download', id),
   pauseDownload: (id: string) => ipcRenderer.invoke('pause-download', id),
@@ -52,6 +55,7 @@ const api = {
     ipcRenderer.on('ytdl-url', sub)
     return () => ipcRenderer.removeListener('ytdl-url', sub)
   },
+  sniffMedia: (url: string) => ipcRenderer.invoke('sniff-media', url),
   readClipboard: () => ipcRenderer.invoke('read-clipboard'),
   platform: process.platform
 }

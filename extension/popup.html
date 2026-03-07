@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <div class="header">
+      <span class="title">Detected Media</span>
+      <span id="count" class="count"></span>
+    </div>
+    <div id="list" class="list"></div>
+    <div id="empty" class="empty" style="display:none">
+      <p>No media detected on this page</p>
+      <p class="hint">Play a video to detect streams</p>
+    </div>
+    <div id="footer" class="footer" style="display:none">
+      <button id="download-btn" class="download-btn">Download Selected</button>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

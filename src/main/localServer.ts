@@ -17,7 +17,15 @@ interface Cookie {
   expirationDate?: number
 }
 
-type DownloadHandler = (url: string) => void
+export interface DownloadRequest {
+  url: string
+  type?: string
+  referer?: string
+  headers?: Record<string, string>
+  title?: string
+}
+
+type DownloadHandler = (request: DownloadRequest) => void
 let onDownloadRequest: DownloadHandler | null = null
 
 export function setDownloadHandler(handler: DownloadHandler): void {
@@ -98,13 +106,13 @@ export function startLocalServer(): void {
     if (req.method === 'POST' && req.url === '/download') {
       try {
         const body = await readBody(req)
-        const { url } = JSON.parse(body) as { url: string }
-        if (!url) {
+        const parsed = JSON.parse(body) as DownloadRequest
+        if (!parsed.url) {
           json(res, 400, { error: 'Missing url' })
           return
         }
-        if (onDownloadRequest) onDownloadRequest(url)
-        json(res, 200, { ok: true, url })
+        if (onDownloadRequest) onDownloadRequest(parsed)
+        json(res, 200, { ok: true, url: parsed.url })
       } catch (err) {
         json(res, 500, { error: String(err) })
       }

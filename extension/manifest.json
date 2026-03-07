@@ -1,19 +1,18 @@
 {
   "manifest_version": 3,
   "name": "YT Download",
-  "version": "1.0.0",
-  "description": "Send YouTube videos to YT Download app for downloading",
+  "version": "1.1.0",
+  "description": "Download YouTube videos and detect media streams on any website",
   "permissions": [
     "cookies",
     "activeTab",
     "tabs",
     "alarms",
-    "scripting"
+    "scripting",
+    "webRequest"
   ],
   "host_permissions": [
-    "*://*.youtube.com/*",
-    "*://youtu.be/*",
-    "*://music.youtube.com/*"
+    "<all_urls>"
   ],
   "background": {
     "service_worker": "background.js"
@@ -39,6 +38,7 @@
       "16": "icons/icon16-gray.png",
       "48": "icons/icon48-gray.png"
     },
-    "default_title": "YT Download"
+    "default_title": "YT Download",
+    "default_popup": "popup.html"
   }
 }

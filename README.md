@@ -5,7 +5,7 @@
 <h1 align="center">YT Download</h1>
 
 <p align="center">
-  A Downie-style desktop app for downloading YouTube videos, powered by <code>yt-dlp</code>.
+  A Downie-style desktop app for downloading videos from YouTube and any website, powered by <code>yt-dlp</code>.
 </p>
 
 <p align="center">
@@ -18,13 +18,15 @@
 
 ## Features
 
-- **One-click download** — Paste a YouTube URL with `Cmd+V` or click the companion Chrome extension
-- **Format selection** — Choose video quality (4K to 144p) or extract audio (MP3 320/128kbps)
+- **One-click download** — Paste any URL with `Cmd+V` or click the companion Chrome extension
+- **Universal media detection** — Sniffs HLS (m3u8), MP4, WebM, and FLV streams from any website
+- **Chrome extension** — Detects media streams on every page; shows a picker when multiple streams are found
+- **YouTube integration** — One-click download on YouTube pages with format selection (4K to 144p, MP3)
+- **App-side sniffer** — For sites yt-dlp doesn't support, the app loads the page in a hidden browser and detects streams automatically
 - **Playlist & channel support** — Download entire playlists or channels with organized subfolders
 - **Concurrent downloads** — Configurable parallel download queue (1–10 simultaneous)
 - **Real-time progress** — Live progress bar, network speed, ETA, and download phase (video/audio/merging)
 - **Download management** — Pause, resume, retry, cancel, and delete individual or all tasks
-- **Chrome extension** — Icon turns purple on YouTube pages; click to send URL directly to the app
 - **Cookie sync** — Automatically syncs YouTube cookies from Chrome for authenticated downloads
 - **Crash recovery** — Interrupted downloads are detected and can be resumed on restart
 - **Dark UI** — Clean, minimal dark theme inspired by Downie
@@ -72,17 +74,19 @@ The built app will be in `dist/mac-arm64/YT Download.app` and a DMG installer in
 
 ### Paste a URL
 
-1. Copy a YouTube video, playlist, or channel URL
+1. Copy any video URL (YouTube, direct media link, or any webpage with embedded video)
 2. Focus the app window and press `Cmd+V`
-3. Choose format/quality in the dialog (or skip if disabled in settings)
-4. Download begins automatically
+3. For YouTube: choose format/quality in the dialog
+4. For other sites: the app tries yt-dlp first, then falls back to its built-in media sniffer — if multiple streams are found, a picker dialog lets you choose which to download
+5. Download begins automatically
 
 ### Chrome Extension
 
 1. Load the `extension/` folder in Chrome via `chrome://extensions` (Developer mode → Load unpacked)
-2. Navigate to any YouTube page — the extension icon turns **purple**
-3. Click the icon to send the current URL to the app for download
-4. Cookies are synced automatically every 5 minutes for authenticated access
+2. The extension icon is always active on every page
+3. **YouTube pages** — Click the icon to send the URL directly to the app
+4. **Other pages** — Click the icon to open a popup showing all detected media streams (HLS, MP4, WebM, FLV); select streams and click Download
+5. Cookies are synced automatically every 5 minutes for authenticated access
 
 ### Keyboard Shortcuts
 
@@ -107,26 +111,28 @@ The built app will be in `dist/mac-arm64/YT Download.app` and a DMG installer in
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────┐
-│                  Electron App                    │
-│                                                  │
-│  ┌──────────────┐     IPC      ┌──────────────┐ │
-│  │ Main Process │◄────────────►│   Renderer    │ │
-│  │              │              │   (React)     │ │
-│  │ • yt-dlp     │              │ • UI          │ │
-│  │ • SQLite DB  │              │ • Tailwind    │ │
-│  │ • Settings   │              │ • Radix UI    │ │
-│  │ • HTTP Server│              │ • Three.js    │ │
-│  └──────┬───────┘              └───────────────┘ │
-│         │                                        │
-└─────────┼────────────────────────────────────────┘
-          │ HTTP :18765
-┌─────────▼───────┐
-│ Chrome Extension │
-│ • Cookie sync    │
-│ • URL dispatch   │
-│ • Icon toggle    │
-└─────────────────┘
+┌──────────────────────────────────────────────────────┐
+│                    Electron App                       │
+│                                                       │
+│  ┌────────────────┐     IPC      ┌────────────────┐  │
+│  │  Main Process  │◄────────────►│    Renderer     │  │
+│  │                │              │    (React)      │  │
+│  │ • yt-dlp       │              │ • UI            │  │
+│  │ • SQLite DB    │              │ • Tailwind      │  │
+│  │ • Settings     │              │ • Radix UI      │  │
+│  │ • HTTP Server  │              │ • Three.js      │  │
+│  │ • Media Sniffer│              │ • Media Picker  │  │
+│  └───────┬────────┘              └─────────────────┘  │
+│          │                                            │
+└──────────┼────────────────────────────────────────────┘
+           │ HTTP :18765
+┌──────────▼──────────┐
+│  Chrome Extension   │
+│ • Media sniffing    │
+│ • Stream picker UI  │
+│ • Cookie sync       │
+│ • URL dispatch      │
+└─────────────────────┘
 ```
 
 ### Tech Stack
@@ -150,6 +156,7 @@ src/
 │   ├── index.ts            # App entry, windows, IPC handlers
 │   ├── downloadManager.ts  # Queue, concurrency, task lifecycle
 │   ├── ytdlp.ts            # yt-dlp CLI wrapper
+│   ├── mediaSniffer.ts     # Hidden browser media stream detection
 │   ├── database.ts         # SQLite persistence
 │   ├── settings.ts         # JSON settings store
 │   └── localServer.ts      # HTTP server for Chrome extension
@@ -163,17 +170,20 @@ src/
         │   ├── DownloadItem.tsx
         │   ├── PlaylistGroup.tsx
         │   ├── FormatDialog.tsx
+        │   ├── MediaPickerDialog.tsx
         │   ├── Settings.tsx
         │   ├── BottomBar.tsx
         │   ├── TitleBar.tsx
         │   ├── ClearDialog.tsx
         │   └── CoinLoader.tsx
         └── hooks/
-            └── useDownloads.ts
+            ├── useDownloads.ts
+            └── useUrlHandler.ts
 
 extension/                  # Chrome Extension (Manifest V3)
 ├── manifest.json
-├── background.js           # Icon toggle, URL dispatch, cookie sync
+├── background.js           # Media sniffing, URL dispatch, cookie sync
+├── popup.html/js/css       # Media stream picker popup
 ├── content.js              # Download button injection on YouTube
 └── content.css
 ```
