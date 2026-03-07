@@ -6,6 +6,10 @@ directories:
 files:
   - out/**/*
   - resources/**/*
+protocols:
+  - name: YT Download
+    schemes:
+      - ytdl
 mac:
   icon: resources/icon.icns
   category: public.app-category.utilities

@@ -1,6 +1,31 @@
 import { spawn, ChildProcess, execSync } from 'child_process'
 import { existsSync } from 'fs'
 import { join } from 'path'
+import * as settings from './settings'
+
+const EXTRA_PATH_DIRS = [
+  '/opt/homebrew/bin',
+  '/usr/local/bin',
+  '/usr/bin',
+  '/bin',
+  '/usr/sbin',
+  '/sbin',
+  join(process.env.HOME ?? '', '.local/bin'),
+  join(process.env.HOME ?? '', '.deno/bin')
+]
+
+function spawnEnv(): Record<string, string> {
+  const existing = process.env.PATH ?? ''
+  const dirs = new Set(existing.split(':').concat(EXTRA_PATH_DIRS))
+
+  const ffmpegPath = settings.get('ffmpegPath')
+  if (ffmpegPath) {
+    const ffmpegDir = ffmpegPath.replace(/\/[^/]+$/, '')
+    dirs.add(ffmpegDir)
+  }
+
+  return { ...process.env as Record<string, string>, PATH: [...dirs].join(':') }
+}
 
 export interface VideoInfo {
   id: string
@@ -51,6 +76,7 @@ export interface DownloadProcess {
   process: ChildProcess
   onProgress: (cb: (progress: DownloadProgress) => void) => void
   cancel: () => void
+  getStderr: () => string
 }
 
 const YOUTUBE_REGEX = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\/.+/
@@ -138,7 +164,8 @@ export async function getVideoInfo(
 
   return new Promise((resolve, reject) => {
     const proc = spawn(path, args, {
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: spawnEnv()
     })
 
     let stdout = ''
@@ -283,7 +310,7 @@ export function download(
   if (format === 'audio' || format === 'mp3') {
     formatStr = 'bestaudio/best'
   } else {
-    formatStr = `bv[height<=${quality}][ext=mp4]+ba[ext=m4a]/bv[height<=${quality}]+ba/best[height<=${quality}]`
+    formatStr = `bv[height<=${quality}][ext=mp4]+ba[ext=m4a]/bv[height<=${quality}]+ba/best[height<=${quality}]/bestvideo+bestaudio/best`
   }
 
   const args: string[] = [
@@ -311,10 +338,12 @@ export function download(
   args.push(url)
 
   const proc = spawn(path, args, {
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: spawnEnv()
   })
 
   let currentPhase = ''
+  let stderrBuf = ''
 
   const parseLine = (line: string) => {
     const result = parseProgressLine(line, currentPhase)
@@ -333,7 +362,9 @@ export function download(
   })
 
   proc.stderr?.on('data', (chunk: Buffer) => {
-    for (const line of chunk.toString().split('\n')) {
+    const text = chunk.toString()
+    stderrBuf += text
+    for (const line of text.split('\n')) {
       parseLine(line)
     }
   })
@@ -349,7 +380,8 @@ export function download(
       } catch {
         proc.kill('SIGKILL')
       }
-    }
+    },
+    getStderr: () => stderrBuf
   }
 
   return downloadProcess

@@ -28,6 +28,11 @@ if (!gotLock) {
   app.quit()
 }
 
+const launchUrl = process.argv.find((arg) => arg.startsWith('ytdl://'))
+if (launchUrl) {
+  pendingYtdlUrl = launchUrl
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 680,
@@ -163,7 +168,11 @@ app.whenReady().then(() => {
 app.on('open-url', (event, url) => {
   event.preventDefault()
   if (url.startsWith('ytdl://')) {
-    handleYtdlUrl(url)
+    if (app.isReady()) {
+      handleYtdlUrl(url)
+    } else {
+      pendingYtdlUrl = url
+    }
   }
 })
 

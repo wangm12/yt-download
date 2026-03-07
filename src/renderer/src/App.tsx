@@ -161,6 +161,12 @@ function MainApp() {
             </div>
           )}
 
+          {errorMsg && (
+            <div className="px-4 py-2 bg-accent-coral/10 border-b border-accent-coral/20">
+              <p className="text-accent-coral text-xs">{errorMsg}</p>
+            </div>
+          )}
+
           {grouped.length === 0 && !loading ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-8">
               <p className="text-muted-foreground text-sm mb-2">
@@ -169,9 +175,6 @@ function MainApp() {
               <p className="text-tertiary-foreground text-xs">
                 Supports videos, playlists, and channels
               </p>
-              {errorMsg && (
-                <p className="text-accent-coral text-xs mt-3">{errorMsg}</p>
-              )}
             </div>
           ) : (
             <div className="divide-y divide-border/50">

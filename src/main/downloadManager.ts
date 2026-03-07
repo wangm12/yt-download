@@ -43,7 +43,7 @@ interface AddTaskOptions {
   playlistTitle?: string
 }
 
-let activeDownloads = new Map<string, { cancel: () => void }>()
+let activeDownloads = new Map<string, { cancel: () => void; getStderr?: () => string }>()
 let mainWindow: BrowserWindow | null = null
 
 export function setMainWindow(win: BrowserWindow | null): void {
@@ -156,7 +156,7 @@ async function runTask(task: DownloadTask): Promise<void> {
     ytdlpPath
   )
 
-  activeDownloads.set(task.id, { cancel: dp.cancel })
+  activeDownloads.set(task.id, { cancel: dp.cancel, getStderr: dp.getStderr })
   dp.onProgress((progress) => {
     task.progress = progress.percent
     task.status = 'downloading'
@@ -193,7 +193,9 @@ async function runTask(task: DownloadTask): Promise<void> {
 
       if (code !== 0) {
         task.status = 'error'
-        task.error = `Process exited with code ${code}`
+        const stderr = dp.getStderr().trim()
+        const errorLine = stderr.split('\n').filter((l) => l.includes('ERROR:')).pop()
+        task.error = errorLine || `yt-dlp exited with code ${code}`
         db.updateDownload(task.id, { status: 'error', error: task.error })
         emitProgress(task)
         resolve()

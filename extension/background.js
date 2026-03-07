@@ -20,7 +20,7 @@ chrome.action.onClicked.addListener(async (tab) => {
   lastClickTime = now
 
   if (isYouTubeUrl(tab.url)) {
-    await sendDownloadRequest(tab.url)
+    await sendDownloadRequest(tab.url, tab.id)
   }
 })
 
@@ -57,7 +57,7 @@ function isYouTubeUrl(url) {
   return /^https?:\/\/(www\.)?(youtube\.com|youtu\.be|music\.youtube\.com)/.test(url)
 }
 
-async function sendDownloadRequest(videoUrl) {
+async function sendDownloadRequest(videoUrl, tabId) {
   try {
     await syncCookies()
     const res = await fetch(`${APP_URL}/download`, {
@@ -67,8 +67,20 @@ async function sendDownloadRequest(videoUrl) {
     })
     return res.ok
   } catch {
-    console.warn('YT Download app is not running')
+    console.warn('YT Download app is not running, launching via protocol')
+    launchViaProtocol(videoUrl, tabId)
     return false
+  }
+}
+
+function launchViaProtocol(videoUrl, tabId) {
+  const ytdlUrl = `ytdl://download?url=${encodeURIComponent(videoUrl)}`
+  if (tabId) {
+    chrome.scripting.executeScript({
+      target: { tabId },
+      func: (url) => { window.location.href = url },
+      args: [ytdlUrl]
+    }).catch(() => {})
   }
 }
 
