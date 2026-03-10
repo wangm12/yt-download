@@ -47,6 +47,7 @@ interface AddTaskOptions {
 }
 
 let activeDownloads = new Map<string, { cancel: () => void; getStderr?: () => string; getDestinations?: () => string[] }>()
+const taskExtraMeta = new Map<string, { mediaType?: string; referer?: string; customHeaders?: Record<string, string> }>()
 let mainWindow: BrowserWindow | null = null
 
 export function setMainWindow(win: BrowserWindow | null): void {
@@ -113,6 +114,14 @@ export function addTask(options: AddTaskOptions): DownloadTask {
     updatedAt: new Date().toISOString()
   }
 
+  if (options.mediaType || options.referer || options.customHeaders) {
+    taskExtraMeta.set(id, {
+      mediaType: options.mediaType,
+      referer: options.referer,
+      customHeaders: options.customHeaders
+    })
+  }
+
   db.insertDownload({
     id: task.id,
     url: task.url,
@@ -151,7 +160,10 @@ async function runTask(task: DownloadTask): Promise<void> {
     : outputDir
 
   const taskMeta = task.metadata as Record<string, unknown> | undefined
-  const hasMediaType = !!(taskMeta?.mediaType)
+  const cached = taskExtraMeta.get(task.id)
+  const mediaType = cached?.mediaType || (taskMeta?.mediaType as string) || undefined
+  const referer = cached?.referer || (taskMeta?.referer as string) || undefined
+  const customHeaders = cached?.customHeaders || (taskMeta?.customHeaders as Record<string, string>) || undefined
   const dp = ytdlp.download(
     {
       url: task.url,
@@ -162,9 +174,9 @@ async function runTask(task: DownloadTask): Promise<void> {
       sleepInterval,
       isPlaylist: false,
       playlistTitle: undefined,
-      referer: (taskMeta?.referer as string) || undefined,
-      customHeaders: (taskMeta?.customHeaders as Record<string, string>) || undefined,
-      outputTitle: hasMediaType ? task.title : undefined
+      referer,
+      customHeaders,
+      outputTitle: mediaType ? task.title : undefined
     },
     ytdlpPath
   )
@@ -254,6 +266,7 @@ async function runTask(task: DownloadTask): Promise<void> {
       task.status = 'complete'
       task.progress = 100
       task.updatedAt = new Date().toISOString()
+      taskExtraMeta.delete(task.id)
       db.updateDownload(task.id, {
         status: 'complete',
         progress: 100,
@@ -366,6 +379,7 @@ export function retryTask(id: string): boolean {
 
 export function deleteTask(id: string): void {
   cancelTask(id)
+  taskExtraMeta.delete(id)
   db.deleteDownload(id)
 }
 

@@ -148,30 +148,76 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tabId = tabs[0]?.id
       if (!tabId) {
-        sendResponse({ media: [], tabUrl: '' })
+        sendResponse({ media: [], tabUrl: '', tabTitle: '' })
         return
       }
       const mediaMap = tabMedia.get(tabId)
       const media = mediaMap ? Array.from(mediaMap.values()) : []
-      sendResponse({ media, tabUrl: tabs[0].url || '' })
+      sendResponse({ media, tabUrl: tabs[0].url || '', tabTitle: tabs[0].title || '' })
     })
     return true
   }
 
   if (message.type === 'DOWNLOAD_MEDIA') {
-    const { items, tabUrl } = message
-    Promise.all(
-      items.map((item) =>
-        sendDownloadRequest({
-          url: item.url,
-          type: item.type,
-          referer: item.initiator || tabUrl || '',
-          title: item.title
+    const { items, tabUrl, tabTitle } = message
+    const baseTitle = tabTitle || 'download'
+    chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+      const tabId = tabs[0]?.id || null
+      const requests = items.map((item, i) => ({
+        url: item.url,
+        type: item.type,
+        referer: item.initiator || tabUrl || '',
+        title: items.length > 1 ? `${baseTitle} (${i + 1})` : baseTitle
+      }))
+
+      try {
+        await syncCookies()
+        const firstRes = await fetch(`${APP_URL}/download`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requests[0])
         })
-      )
-    )
-      .then(() => sendResponse({ ok: true }))
-      .catch(() => sendResponse({ error: true }))
+        if (firstRes.ok) {
+          for (let i = 1; i < requests.length; i++) {
+            await fetch(`${APP_URL}/download`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(requests[i])
+            })
+          }
+          sendResponse({ ok: true })
+          return
+        }
+      } catch {
+        // App not running — launch via protocol then retry
+      }
+
+      launchViaProtocol(requests[0], tabId)
+
+      if (requests.length > 1) {
+        const retryRemaining = async (attempt) => {
+          if (attempt > 5) return
+          await new Promise((r) => setTimeout(r, 2000))
+          try {
+            const ping = await fetch(`${APP_URL}/ping`)
+            if (ping.ok) {
+              for (let i = 1; i < requests.length; i++) {
+                await fetch(`${APP_URL}/download`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(requests[i])
+                })
+              }
+              return
+            }
+          } catch {}
+          retryRemaining(attempt + 1)
+        }
+        retryRemaining(0)
+      }
+
+      sendResponse({ ok: true })
+    })
     return true
   }
 
@@ -193,23 +239,45 @@ async function sendDownloadRequest(request, tabId) {
     return res.ok
   } catch {
     console.warn('YT Download app is not running, launching via protocol')
-    launchViaProtocol(request.url, tabId)
+    launchViaProtocol(request, tabId)
     return false
   }
 }
 
-function launchViaProtocol(videoUrl, tabId) {
-  const ytdlUrl = `ytdl://download?url=${encodeURIComponent(videoUrl)}`
-  if (tabId) {
+function launchViaProtocol(request, tabId) {
+  const params = new URLSearchParams({ url: request.url || request })
+  if (typeof request === 'object') {
+    if (request.type) params.set('type', request.type)
+    if (request.referer) params.set('referer', request.referer)
+    if (request.title) params.set('title', request.title)
+  }
+  const ytdlUrl = `ytdl://download?${params.toString()}`
+
+  const execTabId = tabId || undefined
+  if (execTabId) {
     chrome.scripting
       .executeScript({
-        target: { tabId },
+        target: { tabId: execTabId },
         func: (url) => {
           window.location.href = url
         },
         args: [ytdlUrl]
       })
       .catch(() => {})
+  } else {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]?.id) {
+        chrome.scripting
+          .executeScript({
+            target: { tabId: tabs[0].id },
+            func: (url) => {
+              window.location.href = url
+            },
+            args: [ytdlUrl]
+          })
+          .catch(() => {})
+      }
+    })
   }
 }
 

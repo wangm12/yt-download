@@ -30,6 +30,11 @@ body {
 .title {
   font-weight: 600;
   font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .count {

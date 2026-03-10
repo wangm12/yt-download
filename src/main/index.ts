@@ -4,7 +4,8 @@ import { optimizer, is } from '@electron-toolkit/utils'
 import * as database from './database'
 import * as downloadManager from './downloadManager'
 import { startPoTokenServer } from './poTokenServer'
-import { startLocalServer, stopLocalServer, setDownloadHandler, DownloadRequest } from './localServer'
+import { startLocalServer, stopLocalServer, setDownloadHandler, setMediaDownloadHandler, DownloadRequest } from './localServer'
+import * as settings from './settings'
 import { registerDownloadHandlers } from './ipc/downloads'
 import { registerSettingsHandlers } from './ipc/settings'
 import { registerWindowHandlers } from './ipc/window'
@@ -156,6 +157,22 @@ app.whenReady().then(() => {
   startPoTokenServer()
   startLocalServer()
   setDownloadHandler((request) => handleDownloadRequest(request))
+  setMediaDownloadHandler((request) => {
+    const quality = settings.get('defaultVideoQuality')
+    downloadManager.addTask({
+      url: request.url,
+      title: request.title || 'download',
+      format: 'video',
+      quality,
+      mediaType: request.type,
+      referer: request.referer,
+      customHeaders: request.headers
+    })
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show()
+      mainWindow.focus()
+    }
+  })
   app.setAsDefaultProtocolClient('ytdl')
   setupIpcHandlers()
   optimizer.registerFramelessWindowIpc()

@@ -26,10 +26,16 @@ export interface DownloadRequest {
 }
 
 type DownloadHandler = (request: DownloadRequest) => void
+type MediaDownloadHandler = (request: DownloadRequest) => void
 let onDownloadRequest: DownloadHandler | null = null
+let onMediaDownloadRequest: MediaDownloadHandler | null = null
 
 export function setDownloadHandler(handler: DownloadHandler): void {
   onDownloadRequest = handler
+}
+
+export function setMediaDownloadHandler(handler: MediaDownloadHandler): void {
+  onMediaDownloadRequest = handler
 }
 
 function toNetscapeLine(c: Cookie): string {
@@ -111,7 +117,11 @@ export function startLocalServer(): void {
           json(res, 400, { error: 'Missing url' })
           return
         }
-        if (onDownloadRequest) onDownloadRequest(parsed)
+        if (parsed.type && onMediaDownloadRequest) {
+          onMediaDownloadRequest(parsed)
+        } else if (onDownloadRequest) {
+          onDownloadRequest(parsed)
+        }
         json(res, 200, { ok: true, url: parsed.url })
       } catch (err) {
         json(res, 500, { error: String(err) })

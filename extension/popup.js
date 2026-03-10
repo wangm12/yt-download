@@ -1,15 +1,21 @@
 document.addEventListener('DOMContentLoaded', () => {
   chrome.runtime.sendMessage({ type: 'GET_MEDIA' }, (response) => {
-    const { media = [], tabUrl = '' } = response || {}
-    renderMedia(media, tabUrl)
+    const { media = [], tabUrl = '', tabTitle = '' } = response || {}
+    renderMedia(media, tabUrl, tabTitle)
   })
 })
 
-function renderMedia(media, tabUrl) {
+function renderMedia(media, tabUrl, tabTitle) {
   const list = document.getElementById('list')
   const empty = document.getElementById('empty')
   const footer = document.getElementById('footer')
   const count = document.getElementById('count')
+  const headerTitle = document.getElementById('header-title')
+
+  if (headerTitle && tabTitle) {
+    headerTitle.textContent = tabTitle
+    headerTitle.title = tabTitle
+  }
 
   if (media.length === 0) {
     empty.style.display = 'flex'
@@ -84,7 +90,8 @@ function renderMedia(media, tabUrl) {
       {
         type: 'DOWNLOAD_MEDIA',
         items: selected,
-        tabUrl
+        tabUrl,
+        tabTitle
       },
       () => {
         window.close()
