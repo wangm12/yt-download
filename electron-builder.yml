@@ -6,6 +6,11 @@ directories:
 files:
   - out/**/*
   - resources/**/*
+extraResources:
+  - from: extension
+    to: extension
+    filter:
+      - "**/*"
 protocols:
   - name: V-Download
     schemes:

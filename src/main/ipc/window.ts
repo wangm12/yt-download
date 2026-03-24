@@ -59,7 +59,7 @@ export function registerWindowHandlers(ctx: WindowContext): void {
       resizable: false,
       parent: mainWindow ?? undefined,
       webPreferences: {
-        preload: join(__dirname, '../../preload/index.js'),
+        preload: join(__dirname, '../preload/index.js'),
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: false
@@ -71,7 +71,7 @@ export function registerWindowHandlers(ctx: WindowContext): void {
     if (is.dev && VITE_DEV_SERVER_URL) {
       settingsWindow.loadURL(`${VITE_DEV_SERVER_URL}#/settings`)
     } else {
-      settingsWindow.loadFile(join(__dirname, '../../renderer/index.html'), { hash: '/settings' })
+      settingsWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/settings' })
     }
 
     settingsWindow.webContents.on('before-input-event', (_event, input) => {
@@ -94,5 +94,29 @@ export function registerWindowHandlers(ctx: WindowContext): void {
     if (win && win !== ctx.getMainWindow()) {
       win.close()
     }
+  })
+
+  ipcMain.handle('install-chrome-extension', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender) ?? ctx.getSettingsWindow() ?? undefined
+    await dialog.showMessageBox(win!, {
+      type: 'info',
+      title: 'Install Chrome Extension',
+      message: 'How to install the V-Download Chrome Extension',
+      detail:
+        '1. Open Chrome and go to chrome://extensions\n' +
+        '2. Enable "Developer mode" (top right toggle)\n' +
+        '3. Click "Load unpacked"\n' +
+        '4. Select the extension folder from the V-Download app:\n\n' +
+        '   Right-click V-Download.app → Show Package Contents → Contents → Resources → extension\n\n' +
+        'Or if you cloned the repo, select the extension/ folder directly.',
+      buttons: ['Open chrome://extensions', 'OK']
+    }).then((result) => {
+      if (result.response === 0) {
+        shell.openExternal('https://chrome.google.com/extensions').catch(() => {
+          shell.openExternal('chrome://extensions').catch(() => {})
+        })
+      }
+    })
+    return { ok: true }
   })
 }

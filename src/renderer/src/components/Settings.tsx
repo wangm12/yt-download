@@ -105,20 +105,24 @@ export function SettingsPage() {
 
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-foreground">YouTube Account</p>
+                <p className="text-sm text-foreground">Chrome Extension</p>
                 <p className="text-xs text-muted-foreground">
-                  {settings.cookiesPath ? 'Synced via Chrome Extension' : 'Install Chrome Extension to sync cookies'}
+                  {settings.cookiesPath ? 'Connected — cookies synced' : 'Detect videos & sync cookies'}
                 </p>
               </div>
-              {settings.cookiesPath ? (
-                <span className="px-2.5 py-1 rounded-md bg-accent-green/20 text-accent-green text-xs font-medium">
-                  Connected
-                </span>
-              ) : (
-                <span className="px-2.5 py-1 rounded-md bg-border text-muted-foreground text-xs font-medium">
-                  Not Connected
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {settings.cookiesPath && (
+                  <span className="px-2.5 py-1 rounded-md bg-accent-green/20 text-accent-green text-xs font-medium">
+                    Connected
+                  </span>
+                )}
+                <button
+                  onClick={() => window.api?.installChromeExtension?.()}
+                  className="px-3 py-1.5 rounded-lg bg-elevated border border-border text-xs font-medium text-foreground hover:bg-surface transition-colors"
+                >
+                  Install Guide
+                </button>
+              </div>
             </div>
 
             <div>

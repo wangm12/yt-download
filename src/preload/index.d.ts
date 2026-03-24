@@ -35,6 +35,7 @@ export interface WindowApi {
   onSettingsChanged: (callback: () => void) => () => void
   selectDownloadFolder: () => Promise<string | undefined>
   readClipboard: () => Promise<string>
+  installChromeExtension: () => Promise<{ ok?: boolean; path?: string; error?: string }>
   openSettings: () => Promise<void>
   closeWindow: () => Promise<void>
   platform: NodeJS.Platform

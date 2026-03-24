@@ -57,6 +57,7 @@ const api = {
   },
   sniffMedia: (url: string) => ipcRenderer.invoke('sniff-media', url),
   readClipboard: () => ipcRenderer.invoke('read-clipboard'),
+  installChromeExtension: () => ipcRenderer.invoke('install-chrome-extension'),
   platform: process.platform
 }
 
