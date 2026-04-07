@@ -14,7 +14,8 @@ export function groupDownloadsByPlaylist(downloads: Download[]): (Download | Pla
           playlist: {
             id: d.playlist_id,
             url: d.url,
-            title: d.channel || 'Playlist',
+            // playlist_id holds the human playlist name (same as download subfolder); channel is often null
+            title: d.playlist_id,
             type: 'playlist',
             total_count: 1,
             completed_count: d.status === 'complete' ? 1 : 0,

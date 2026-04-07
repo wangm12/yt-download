@@ -17,6 +17,7 @@ import { useUrlHandler } from '@/hooks/useUrlHandler'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { groupDownloadsByPlaylist } from '@/utils/downloads'
 import { parseSpeedToBytes, formatSpeed } from '@/utils/format'
+import { useThrottledValue } from '@/hooks/useThrottledValue'
 import type { Download, Playlist } from '@/types'
 
 export default function App() {
@@ -172,7 +173,8 @@ function MainApp() {
   const totalSpeedBytes = downloads
     .filter((d) => d.status === 'downloading' && d.speed)
     .reduce((sum, d) => sum + parseSpeedToBytes(d.speed!), 0)
-  const totalSpeed = totalSpeedBytes > 0 ? formatSpeed(totalSpeedBytes) : null
+  const rawTotalSpeed = totalSpeedBytes > 0 ? formatSpeed(totalSpeedBytes) : null
+  const totalSpeed = useThrottledValue(rawTotalSpeed, 2000)
 
   return (
     <DownloadActionsProvider

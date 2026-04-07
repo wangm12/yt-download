@@ -103,18 +103,25 @@ function updateDockProgress(): void {
     return
   }
 
-  let totalProgress = 0
-  let count = 0
   let totalSpeed = 0
-
   for (const [id] of activeDownloads) {
-    totalProgress += taskProgress.get(id) ?? 0
     totalSpeed += taskSpeedBytes.get(id) ?? 0
-    count++
   }
 
-  const avgProgress = count > 0 ? totalProgress / count : 0
-  dockProgress.updateProgress(avgProgress, totalSpeed)
+  const all = db.getDownloads()
+  const activeCount = all.filter((r) => r.status === 'downloading' || r.status === 'queued').length
+
+  let overallProgress = 0
+  for (const r of all) {
+    if (r.status === 'complete') {
+      overallProgress += 100
+    } else {
+      overallProgress += taskProgress.get(r.id) ?? r.progress ?? 0
+    }
+  }
+  const avgProgress = all.length > 0 ? overallProgress / all.length : 0
+
+  dockProgress.updateProgress(avgProgress, totalSpeed, activeCount)
 }
 
 function emitProgress(task: DownloadTask): void {
@@ -239,15 +246,31 @@ async function runTask(task: DownloadTask): Promise<void> {
     })
   })
 
+  console.log(`[runTask] started id=${task.id.slice(0,8)} title=${task.title.slice(0,20)}`)
+
   return new Promise((resolve) => {
     dp.process.on('close', async (code, signal) => {
-      activeDownloads.delete(task.id)
-      taskSpeedBytes.delete(task.id)
-      taskProgress.delete(task.id)
+      const isStale = !activeDownloads.has(task.id) || activeDownloads.get(task.id)?.cancel !== dp.cancel
+      if (!isStale) {
+        activeDownloads.delete(task.id)
+        taskSpeedBytes.delete(task.id)
+        taskProgress.delete(task.id)
+      }
       updateDockProgress()
 
+      console.log(`[close] id=${task.id.slice(0,8)} code=${code} signal=${signal} isStale=${isStale}`)
+
+      if (isStale) {
+        console.log(`[close] id=${task.id.slice(0,8)} STALE - skipping`)
+        resolve()
+        processQueue()
+        return
+      }
+
+      const current = db.getDownloads().find((r) => r.id === task.id)
+      console.log(`[close] id=${task.id.slice(0,8)} dbStatus=${current?.status}`)
+
       if (signal === 'SIGTERM' || signal === 'SIGKILL') {
-        const current = db.getDownloads().find((r) => r.id === task.id)
         if (current?.status !== 'paused') {
           task.status = 'cancelled'
           task.error = 'Cancelled by user'
@@ -326,10 +349,20 @@ async function runTask(task: DownloadTask): Promise<void> {
     })
 
     dp.process.on('error', (err) => {
-      activeDownloads.delete(task.id)
-      taskSpeedBytes.delete(task.id)
-      taskProgress.delete(task.id)
+      const isStale = !activeDownloads.has(task.id) || activeDownloads.get(task.id)?.cancel !== dp.cancel
+      if (!isStale) {
+        activeDownloads.delete(task.id)
+        taskSpeedBytes.delete(task.id)
+        taskProgress.delete(task.id)
+      }
       updateDockProgress()
+
+      if (isStale) {
+        resolve()
+        processQueue()
+        return
+      }
+
       task.status = 'error'
       task.error = err.message
       db.updateDownload(task.id, { status: 'error', error: err.message })
@@ -340,16 +373,20 @@ async function runTask(task: DownloadTask): Promise<void> {
   })
 }
 
-let processing = false
-async function processQueue(): Promise<void> {
-  if (processing) return
-  processing = true
+let pendingQueue = false
+function processQueue(): void {
+  if (pendingQueue) return
+  pendingQueue = true
 
-  try {
+  queueMicrotask(() => {
+    pendingQueue = false
+
     const concurrency = settings.get('concurrency')
     const all = db.getDownloads()
     const effectiveActive = Math.max(all.filter((r) => r.status === 'downloading').length, activeDownloads.size)
     const queued = all.filter((r) => r.status === 'queued')
+
+    console.log(`[processQueue] active=${effectiveActive}/${concurrency} queued=${queued.length} activeMap=${activeDownloads.size}`)
 
     if (effectiveActive >= concurrency || queued.length === 0) {
       return
@@ -364,9 +401,7 @@ async function processQueue(): Promise<void> {
       task.status = 'downloading'
       runTask(task).catch(() => {})
     }
-  } finally {
-    processing = false
-  }
+  })
 }
 
 export function cancelTask(id: string): boolean {
@@ -420,6 +455,7 @@ export function pauseTask(id: string): boolean {
 export function retryTask(id: string): boolean {
   const tasks = db.getDownloads()
   const record = tasks.find((r) => r.id === id)
+  console.log(`[retryTask] id=${id.slice(0,8)} status=${record?.status ?? 'NOT_FOUND'}`)
   if (record && (record.status === 'error' || record.status === 'interrupted' || record.status === 'cancelled' || record.status === 'paused')) {
     db.updateDownload(id, { status: 'queued', progress: 0, error: null })
     const updated = db.getDownloads().find((r) => r.id === id)
@@ -537,9 +573,13 @@ export function resumeAll(): void {
 
 export function loadFromDbAndRecover(): void {
   const all = db.getDownloads()
+  const statusCounts: Record<string, number> = {}
+  for (const r of all) statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1
+  console.log(`[recover] total=${all.length} statuses=${JSON.stringify(statusCounts)}`)
   for (const r of all) {
     if (r.status === 'downloading') {
       db.updateDownload(r.id, { status: 'interrupted', error: 'App was closed during download' })
     }
   }
+  processQueue()
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   ChevronDown,
-  ChevronUp,
+  ChevronRight,
   ListVideo,
   CircleCheckBig,
   Loader,
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import type { Playlist } from '@/types'
 import { useDownloadActions } from '@/contexts/DownloadActionsContext'
+import { PlaylistDeleteDialog } from './PlaylistDeleteDialog'
 import { ActionButton } from './ActionButton'
 import { formatFileSize } from '@/utils/format'
 
@@ -27,6 +28,7 @@ export function PlaylistGroup({ playlist }: PlaylistGroupProps) {
   const actions = useDownloadActions()
   const [expanded, setExpanded] = useState(true)
   const [showAll, setShowAll] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   const downloads = playlist.downloads ?? []
   const visibleDownloads = showAll ? downloads : downloads.slice(0, VISIBLE_ITEMS)
@@ -43,18 +45,42 @@ export function PlaylistGroup({ playlist }: PlaylistGroupProps) {
   const hasResumableItems = resumableItems.length > 0
 
   return (
+    <>
+      {deleteDialogOpen && (
+        <PlaylistDeleteDialog
+          playlistTitle={playlist.title}
+          videoCount={downloads.length}
+          onClose={() => setDeleteDialogOpen(false)}
+          onRemoveListOnly={() => {
+            downloads.forEach((d) => actions.remove(d.id))
+          }}
+          onRemoveWithFiles={() => {
+            downloads.forEach((d) => actions.removeWithFiles(d.id))
+          }}
+        />
+      )}
     <div className="border-b border-border overflow-hidden" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
       <div
         role="button"
         tabIndex={0}
-        onClick={() => setExpanded(!expanded)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setExpanded(!expanded) }}
+        onClick={() => {
+          const next = !expanded
+          setExpanded(next)
+          if (!next) setShowAll(false)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            const next = !expanded
+            setExpanded(next)
+            if (!next) setShowAll(false)
+          }
+        }}
         className="w-full flex items-center gap-3 px-4 py-3 bg-surface hover:bg-surface/80 transition-colors text-left cursor-pointer"
       >
         {expanded ? (
           <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
         ) : (
-          <ChevronUp className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
         )}
         <div className="w-8 h-8 rounded flex items-center justify-center bg-accent-indigo/20 text-accent-indigo flex-shrink-0">
           <ListVideo className="w-4 h-4" />
@@ -102,12 +128,14 @@ export function PlaylistGroup({ playlist }: PlaylistGroupProps) {
             </button>
           )}
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation()
-              downloads.forEach((d) => actions.removeWithFiles(d.id))
+              setDeleteDialogOpen(true)
             }}
             className="p-1 rounded text-muted-foreground hover:text-accent-coral hover:bg-elevated transition-colors"
-            title="Delete all with files"
+            title="Remove playlist"
+            aria-label="Remove playlist"
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -175,5 +203,6 @@ export function PlaylistGroup({ playlist }: PlaylistGroupProps) {
         </div>
       )}
     </div>
+    </>
   )
 }
