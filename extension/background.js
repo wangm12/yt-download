@@ -1,5 +1,16 @@
 const APP_URL = 'http://127.0.0.1:18765'
-const YOUTUBE_COOKIE_DOMAIN = '.youtube.com'
+const VDL_SERVER_URL = 'http://127.0.0.1:30010'
+
+const COOKIE_SYNC_DOMAINS = [
+  '.youtube.com',
+  '.douyin.com',
+  '.tiktok.com',
+  '.xiaohongshu.com',
+  '.bilibili.com',
+  '.x.com',
+  '.twitter.com',
+  '.instagram.com',
+]
 const DEBOUNCE_MS = 2000
 
 const ICON_ACTIVE = {
@@ -455,28 +466,31 @@ function launchViaProtocol(request, tabId) {
 
 async function syncCookies() {
   try {
-    const cookies = await chrome.cookies.getAll({ domain: YOUTUBE_COOKIE_DOMAIN })
-    const mapped = cookies.map((c) => ({
-      name: c.name,
-      value: c.value,
-      domain: c.domain,
-      path: c.path,
-      secure: c.secure,
-      httpOnly: c.httpOnly,
-      expirationDate: c.expirationDate
-    }))
-
-    const res = await fetch(`${APP_URL}/cookies`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(mapped)
-    })
-
-    if (res.ok) {
-      console.log(`Synced ${mapped.length} cookies to V-Download app`)
+    const allCookies = []
+    for (const domain of COOKIE_SYNC_DOMAINS) {
+      const cookies = await chrome.cookies.getAll({ domain })
+      allCookies.push(...cookies.map((c) => ({
+        name: c.name,
+        value: c.value,
+        domain: c.domain,
+        path: c.path,
+        secure: c.secure,
+        httpOnly: c.httpOnly,
+        expirationDate: c.expirationDate
+      })))
     }
+
+    const body = JSON.stringify(allCookies)
+    const headers = { 'Content-Type': 'application/json' }
+
+    await Promise.allSettled([
+      fetch(`${APP_URL}/cookies`, { method: 'POST', headers, body }).catch(() => {}),
+      fetch(`${VDL_SERVER_URL}/api/cookies`, { method: 'POST', headers, body }).catch(() => {}),
+    ])
+
+    console.log(`Synced ${allCookies.length} cookies across ${COOKIE_SYNC_DOMAINS.length} domains`)
   } catch {
-    // App not running, silently ignore
+    // Extension context error, silently ignore
   }
 }
 

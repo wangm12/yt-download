@@ -1,0 +1,12 @@
+services:
+  vdl-server:
+    build: .
+    container_name: vdl-server
+    restart: unless-stopped
+    ports:
+      - "30010:30010"
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+      - ./tmp:/app/tmp
+      - ~/.cloudflared:/root/.cloudflared:ro

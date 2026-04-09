@@ -1,0 +1,9 @@
+node_modules/
+dist/
+data/
+tmp/
+.env
+service-account.json
+vdl-server-*.json
+cookies*.txt
+*.db
